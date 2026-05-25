@@ -1,107 +1,159 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8" />
   <title>Álbum Privado</title>
   <style>
     * { box-sizing: border-box; }
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      background: #f8fbfd;
-      color: #333;
-    }
-    header {
-      background: #d6f4f8;
-      padding: 15px;
-      text-align: center;
-    }
+    body { font-family: Arial, sans-serif; margin: 0; background: #f8fbfd; color: #333; }
+    header { background: #d6f4f8; padding: 15px; text-align: center; }
     header h1 { margin: 0; font-size: 1.8em; }
-    .container {
-      padding: 15px;
-      max-width: 1000px;
-      margin: auto;
-    }
-    .card {
-      background: white;
-      border-radius: 12px;
-      padding: 15px;
-      margin-bottom: 15px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
-    input, button {
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      margin: 5px 0;
-    }
-    button {
-      background: #6ed3df;
-      border: none;
-      color: white;
-      cursor: pointer;
-      font-weight: bold;
-    }
+    .container { padding: 15px; max-width: 1000px; margin: auto; }
+    .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px;
+           box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    input, button { padding: 10px; border-radius: 8px; border: 1px solid #ccc; margin: 5px 0; }
+    button { background: #6ed3df; border: none; color: white; cursor: pointer; font-weight: bold; }
     button:hover { background: #57c2ce; }
-    .gallery {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 15px;
-      margin-top: 15px;
-    }
+    .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+               gap: 15px; margin-top: 15px; }
     .gallery-item {
       position: relative;
       background: #fff;
       border-radius: 10px;
       overflow: hidden;
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      aspect-ratio: 1 / 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
     }
     .gallery-item img, .gallery-item video {
       width: 100%;
-      height: auto;
+      height: 100%;
+      object-fit: cover;
       display: block;
     }
     .delete-btn {
       position: absolute;
       top: 8px;
       right: 8px;
-      background: #ff6b6b;
+      background: rgba(255,107,107,0.95);
       border: none;
       color: white;
       padding: 6px 10px;
       font-size: 0.8em;
       border-radius: 6px;
       cursor: pointer;
+      z-index: 2;
     }
     .delete-btn:hover { background: #e85a5a; }
-    .pagination {
-      display: flex;
-      justify-content: center;
+
+    .pagination { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 15px; }
+
+    /* Viewer fullscreen */
+    #viewer {
+      position: fixed;
+      inset: 0;
+      display: none;
       align-items: center;
-      gap: 10px;
-      margin-top: 15px;
+      justify-content: center;
+      background: rgba(0,0,0,0.85);
+      z-index: 9999;
+      padding: 20px;
+    }
+    #viewer.active { display: flex; }
+    .viewer-content {
+      max-width: 95%;
+      max-height: 95%;
+      width: auto;
+      height: auto;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .viewer-media {
+      max-width: 90vw;
+      max-height: 90vh;
+      object-fit: contain;
+      border-radius: 6px;
+      background: #111;
+      display: block;
+    }
+    .viewer-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 8px;
+      z-index: 3;
+    }
+    .viewer-btn {
+      background: rgba(0,0,0,0.6);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .viewer-nav {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+    .viewer-nav button {
+      pointer-events: auto;
+      background: rgba(0,0,0,0.35);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 18px;
+    }
+    .viewer-caption {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      color: #fff;
+      font-size: 0.95em;
+      text-align: center;
+      opacity: 0.95;
+    }
+
+    @media (max-width: 520px) {
+      .gallery { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+      .viewer-btn { padding: 6px 8px; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Meu Álbum Privado</h1>
-  </header>
+  <header><h1>Meu Álbum Privado</h1></header>
 
   <div class="container">
     <!-- Login -->
     <div id="login" class="card">
       <p>Digite a senha:</p>
-      <input type="password" id="senha">
+      <input type="password" id="senha" />
       <button onclick="entrar()">Entrar</button>
     </div>
 
     <!-- Álbum -->
     <div id="album" class="card" style="display:none;">
       <h2>Galeria</h2>
-      <input type="file" id="fileInput" multiple>
+      <input type="file" id="fileInput" multiple />
       <button onclick="salvarArquivos()">Adicionar</button>
+
       <div class="gallery" id="galeria"></div>
+
       <div class="pagination">
         <button onclick="paginaAnterior()">Anterior</button>
         <span id="paginaInfo"></span>
@@ -110,22 +162,44 @@
     </div>
   </div>
 
+  <!-- Viewer fullscreen -->
+  <div id="viewer" onclick="onViewerBackgroundClick(event)">
+    <div class="viewer-content" role="dialog" aria-modal="true">
+      <div class="viewer-controls">
+        <button class="viewer-btn" onclick="downloadCurrent(event)">Baixar</button>
+        <button class="viewer-btn" onclick="closeViewer(event)">Fechar</button>
+      </div>
+
+      <div class="viewer-nav">
+        <button onclick="prevViewer(event)" aria-label="Anterior">‹</button>
+        <button onclick="nextViewer(event)" aria-label="Próximo">›</button>
+      </div>
+
+      <img id="viewerImg" class="viewer-media" style="display:none;" />
+      <video id="viewerVideo" class="viewer-media" controls style="display:none;"></video>
+
+      <div class="viewer-caption" id="viewerCaption"></div>
+    </div>
+  </div>
+
   <script>
-    const SENHA_CORRETA = "1234"; // troque pela sua senha
+    const SENHA_CORRETA = "1234";
     const DB_NAME = "AlbumPrivado";
     let db;
     let paginaAtual = 1;
     const itensPorPagina = 20;
+    let arquivosGlobal = [];
+    let viewerIndex = -1;
 
-    // Inicializa IndexedDB
     const request = indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = e => {
       db = e.target.result;
-      db.createObjectStore("arquivos", { keyPath: "id", autoIncrement: true });
+      if (!db.objectStoreNames.contains("arquivos")) {
+        db.createObjectStore("arquivos", { keyPath: "id", autoIncrement: true });
+      }
     };
     request.onsuccess = e => { db = e.target.result; };
 
-    // Login
     function entrar() {
       const senha = document.getElementById("senha").value;
       if (senha === SENHA_CORRETA) {
@@ -137,71 +211,243 @@
       }
     }
 
-    // Salvar arquivos
     function salvarArquivos() {
-      const files = document.getElementById("fileInput").files;
-      const tx = db.transaction("arquivos", "readwrite");
-      const store = tx.objectStore("arquivos");
-      for (let file of files) {
+      const files = Array.from(document.getElementById("fileInput").files);
+      if (!files.length) return;
+      let saved = 0;
+      files.forEach(file => {
         const reader = new FileReader();
         reader.onload = () => {
+          const tx = db.transaction("arquivos", "readwrite");
+          const store = tx.objectStore("arquivos");
           store.add({ nome: file.name, tipo: file.type, dados: reader.result });
+          tx.oncomplete = () => {
+            saved++;
+            if (saved === files.length) {
+              paginaAtual = 1;
+              carregarArquivos();
+            }
+          };
+          tx.onerror = () => console.error("Erro ao salvar:", tx.error);
         };
         reader.readAsDataURL(file);
-      }
-      tx.oncomplete = () => { paginaAtual = 1; carregarArquivos(); };
+      });
+      document.getElementById("fileInput").value = "";
     }
 
-    // Carregar arquivos com paginação
     function carregarArquivos() {
-      const galeria = document.getElementById("galeria");
-      galeria.innerHTML = "";
+      arquivosGlobal = [];
       const tx = db.transaction("arquivos", "readonly");
       const store = tx.objectStore("arquivos");
-      const req = store.getAll();
-      req.onsuccess = () => {
-        const arquivos = req.result;
-        const totalPaginas = Math.ceil(arquivos.length / itensPorPagina) || 1;
-        if (paginaAtual > totalPaginas) paginaAtual = totalPaginas;
-        const inicio = (paginaAtual - 1) * itensPorPagina;
-        const fim = inicio + itensPorPagina;
-        const pagina = arquivos.slice(inicio, fim);
-
-        pagina.forEach(({id, tipo, dados}) => {
-          const item = document.createElement("div");
-          item.className = "gallery-item";
-          let el;
-          if (tipo.startsWith("image")) {
-            el = document.createElement("img");
-            el.src = dados;
-          } else if (tipo.startsWith("video")) {
-            el = document.createElement("video");
-            el.src = dados;
-            el.controls = true;
-          }
-          const delBtn = document.createElement("button");
-          delBtn.textContent = "Excluir";
-          delBtn.className = "delete-btn";
-          delBtn.onclick = () => excluirArquivo(id);
-          item.appendChild(el);
-          item.appendChild(delBtn);
-          galeria.appendChild(item);
-        });
-
-        document.getElementById("paginaInfo").textContent =
-          `Página ${paginaAtual} de ${totalPaginas}`;
+      const req = store.openCursor();
+      req.onsuccess = e => {
+        const cursor = e.target.result;
+        if (cursor) {
+          const record = cursor.value;
+          arquivosGlobal.push({ id: cursor.primaryKey, nome: record.nome, tipo: record.tipo, dados: record.dados });
+          cursor.continue();
+        } else {
+          renderPagina();
+        }
       };
+      req.onerror = () => console.error("Erro ao ler IndexedDB:", req.error);
     }
 
-    function proximaPagina() { paginaAtual++; carregarArquivos(); }
-    function paginaAnterior() { if (paginaAtual > 1) paginaAtual--; carregarArquivos(); }
+    function renderPagina() {
+      const galeria = document.getElementById("galeria");
+      galeria.innerHTML = "";
+      const totalPaginas = Math.max(1, Math.ceil(arquivosGlobal.length / itensPorPagina));
+      if (paginaAtual > totalPaginas) paginaAtual = totalPaginas;
+      const inicio = (paginaAtual - 1) * itensPorPagina;
+      const fim = inicio + itensPorPagina;
+      const pagina = arquivosGlobal.slice(inicio, fim);
 
-    // Excluir arquivo
-    function excluirArquivo(id) {
-      const tx = db.transaction("arquivos", "readwrite");
-      const store = tx.objectStore("arquivos");
-      store.delete(id);
-      tx.oncomplete = carregarArquivos;
+      pagina.forEach(itemData => {
+        const { id, tipo, dados } = itemData;
+        const item = document.createElement("div");
+        item.className = "gallery-item";
+
+        item.addEventListener("click", (ev) => {
+          if (ev.target.classList.contains('delete-btn')) return;
+          const globalIndex = arquivosGlobal.findIndex(a => a.id === id);
+          if (globalIndex >= 0) openViewer(globalIndex);
+        });
+
+        let el;
+        if (tipo.startsWith("image")) {
+          el = document.createElement("img");
+          el.src = dados;
+          el.alt = "";
+        } else if (tipo.startsWith("video")) {
+          el = document.createElement("video");
+          el.src = dados;
+          el.controls = false;
+        } else {
+          el = document.createElement("div");
+          el.textContent = itemData.nome || "Arquivo";
+          el.style.padding = "10px";
+        }
+
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "Excluir";
+        delBtn.className = "delete-btn";
+        delBtn.onclick = (ev) => {
+          ev.stopPropagation();
+          if (!confirm("Excluir este arquivo?")) return;
+          const txDel = db.transaction("arquivos", "readwrite");
+          txDel.objectStore("arquivos").delete(id);
+          txDel.oncomplete = () => {
+            arquivosGlobal = arquivosGlobal.filter(a => a.id !== id);
+            const totalPaginasAfter = Math.max(1, Math.ceil(arquivosGlobal.length / itensPorPagina));
+            if (paginaAtual > totalPaginasAfter) paginaAtual = totalPaginasAfter;
+            renderPagina();
+          };
+          txDel.onerror = () => console.error("Erro ao excluir:", txDel.error);
+        };
+
+        item.appendChild(el);
+        item.appendChild(delBtn);
+        galeria.appendChild(item);
+      });
+
+      document.getElementById("paginaInfo").textContent = `Página ${paginaAtual} de ${totalPaginas}`;
+    }
+
+    function proximaPagina() {
+      const totalPaginas = Math.max(1, Math.ceil(arquivosGlobal.length / itensPorPagina));
+      if (paginaAtual < totalPaginas) {
+        paginaAtual++;
+        renderPagina();
+      }
+    }
+    function paginaAnterior() {
+      if (paginaAtual > 1) {
+        paginaAtual--;
+        renderPagina();
+      }
+    }
+
+    // Viewer
+    function openViewer(index) {
+      if (index < 0 || index >= arquivosGlobal.length) return;
+      viewerIndex = index;
+      showViewer();
+    }
+
+    function showViewer() {
+      const viewer = document.getElementById("viewer");
+      const imgEl = document.getElementById("viewerImg");
+      const videoEl = document.getElementById("viewerVideo");
+      const caption = document.getElementById("viewerCaption");
+      const record = arquivosGlobal[viewerIndex];
+      if (!record) return;
+
+      // reset
+      imgEl.style.display = "none";
+      videoEl.style.display = "none";
+      imgEl.src = "";
+      videoEl.src = "";
+      imgEl.style.width = "";
+      imgEl.style.height = "";
+      videoEl.style.width = "";
+      videoEl.style.height = "";
+
+      caption.textContent = `${viewerIndex + 1} / ${arquivosGlobal.length}`; // apenas índice, sem nome de arquivo
+
+      if (record.tipo.startsWith("image")) {
+        imgEl.src = record.dados;
+        imgEl.style.display = "block";
+        // quando carregar a imagem, ajusta tamanho para preencher até 90% da viewport,
+        // escalando para cima se a imagem for pequena
+        imgEl.onload = () => {
+          adjustImageSize(imgEl);
+        };
+      } else if (record.tipo.startsWith("video")) {
+        videoEl.src = record.dados;
+        videoEl.style.display = "block";
+        videoEl.onloadedmetadata = () => {
+          adjustVideoSize(videoEl);
+          videoEl.play().catch(()=>{/* autoplay pode ser bloqueado */});
+        };
+      }
+
+      viewer.classList.add("active");
+      document.addEventListener("keydown", onViewerKeyDown);
+    }
+
+    function adjustImageSize(imgEl) {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const maxW = vw * 0.9;
+      const maxH = vh * 0.9;
+      const natW = imgEl.naturalWidth || maxW;
+      const natH = imgEl.naturalHeight || maxH;
+      const scale = Math.min(maxW / natW, maxH / natH);
+      // aplicamos escala mesmo que >1 para ampliar imagens pequenas
+      const finalW = Math.round(natW * scale);
+      const finalH = Math.round(natH * scale);
+      imgEl.style.width = finalW + "px";
+      imgEl.style.height = finalH + "px";
+    }
+
+    function adjustVideoSize(videoEl) {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const maxW = vw * 0.9;
+      const maxH = vh * 0.9;
+      const natW = videoEl.videoWidth || maxW;
+      const natH = videoEl.videoHeight || maxH;
+      const scale = Math.min(maxW / natW, maxH / natH);
+      const finalW = Math.round(natW * scale);
+      const finalH = Math.round(natH * scale);
+      videoEl.style.width = finalW + "px";
+      videoEl.style.height = finalH + "px";
+    }
+
+    function closeViewer(ev) {
+      if (ev) ev.stopPropagation();
+      const viewer = document.getElementById("viewer");
+      const videoEl = document.getElementById("viewerVideo");
+      if (videoEl && !videoEl.paused) videoEl.pause();
+      viewer.classList.remove("active");
+      document.removeEventListener("keydown", onViewerKeyDown);
+    }
+
+    function nextViewer(ev) {
+      if (ev) ev.stopPropagation();
+      if (arquivosGlobal.length === 0) return;
+      viewerIndex = (viewerIndex + 1) % arquivosGlobal.length;
+      showViewer();
+    }
+
+    function prevViewer(ev) {
+      if (ev) ev.stopPropagation();
+      if (arquivosGlobal.length === 0) return;
+      viewerIndex = (viewerIndex - 1 + arquivosGlobal.length) % arquivosGlobal.length;
+      showViewer();
+    }
+
+    function onViewerBackgroundClick(ev) {
+      const content = document.querySelector(".viewer-content");
+      if (!content.contains(ev.target)) closeViewer(ev);
+    }
+
+    function onViewerKeyDown(e) {
+      if (e.key === "Escape") closeViewer();
+      else if (e.key === "ArrowRight") nextViewer();
+      else if (e.key === "ArrowLeft") prevViewer();
+    }
+
+    function downloadCurrent(ev) {
+      ev.stopPropagation();
+      const record = arquivosGlobal[viewerIndex];
+      if (!record) return;
+      const a = document.createElement("a");
+      a.href = record.dados;
+      a.download = record.nome || `arquivo-${record.id}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     }
   </script>
 </body>
