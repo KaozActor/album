@@ -8,12 +8,18 @@
     body { font-family: Arial, sans-serif; margin: 0; background: #f8fbfd; color: #333; }
     header { background: #d6f4f8; padding: 15px; text-align: center; }
     header h1 { margin: 0; font-size: 1.8em; }
-    .container { padding: 15px; max-width: 1000px; margin: auto; }
+    .container { padding: 15px; max-width: 1100px; margin: auto; }
     .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px;
            box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    input, button { padding: 10px; border-radius: 8px; border: 1px solid #ccc; margin: 5px 0; }
+    input[type="text"], input[type="password"], input[type="file"], button {
+      padding: 10px; border-radius: 8px; border: 1px solid #ccc; margin: 5px 0;
+    }
     button { background: #6ed3df; border: none; color: white; cursor: pointer; font-weight: bold; }
     button:hover { background: #57c2ce; }
+    .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    /* group para inputs à esquerda e grupo de ações à direita */
+    .left-group { display:flex; gap:10px; align-items:center; }
+    .right-group { display:flex; gap:10px; align-items:center; margin-left:auto; }
     .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
                gap: 15px; margin-top: 15px; }
     .gallery-item {
@@ -27,28 +33,57 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      padding: 6px;
     }
+    .thumb-wrap { width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
     .gallery-item img, .gallery-item video {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
+      border-radius: 6px;
     }
-    .delete-btn {
+    .meta {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      right: 8px;
+      display:flex;
+      gap:6px;
+      align-items:center;
+      justify-content:flex-start;
+      flex-wrap:wrap;
+      z-index:2;
+      pointer-events: none;
+    }
+    .tag-badge {
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 0.75em;
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    .thumb-actions {
       position: absolute;
       top: 8px;
       right: 8px;
-      background: rgba(255,107,107,0.95);
-      border: none;
+      display:flex;
+      gap:6px;
+      z-index:3;
+    }
+    .small-btn {
+      background: rgba(0,0,0,0.6);
       color: white;
-      padding: 6px 10px;
+      border: none;
+      padding: 6px 8px;
       font-size: 0.8em;
       border-radius: 6px;
       cursor: pointer;
-      z-index: 2;
     }
+    .delete-btn { background: rgba(255,107,107,0.95); }
     .delete-btn:hover { background: #e85a5a; }
-
     .pagination { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 15px; }
 
     /* Viewer fullscreen */
@@ -72,6 +107,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: hidden;
     }
     .viewer-media {
       max-width: 90vw;
@@ -80,6 +116,8 @@
       border-radius: 6px;
       background: #111;
       display: block;
+      transform-origin: center center;
+      transition: transform 0.08s linear;
     }
     .viewer-controls {
       position: absolute;
@@ -132,6 +170,7 @@
     @media (max-width: 520px) {
       .gallery { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
       .viewer-btn { padding: 6px 8px; }
+      .right-group { margin-left: 0; width: 100%; justify-content: flex-end; gap:8px; }
     }
   </style>
 </head>
@@ -149,8 +188,25 @@
     <!-- Álbum -->
     <div id="album" class="card" style="display:none;">
       <h2>Galeria</h2>
-      <input type="file" id="fileInput" multiple />
-      <button onclick="salvarArquivos()">Adicionar</button>
+
+      <div class="controls">
+        <div class="left-group">
+          <input type="file" id="fileInput" multiple />
+          <input type="text" id="preTags" placeholder="Tags para aplicar no upload (separe por vírgula)" style="min-width:260px;" />
+          <button onclick="salvarArquivos()">Adicionar</button>
+          <button onclick="exportAll()">Exportar</button>
+          <label style="display:inline-flex; align-items:center; gap:8px;">
+            <input type="file" id="importInput" accept=".json" style="display:none" onchange="importFile(event)" />
+            <button onclick="document.getElementById('importInput').click()">Importar</button>
+          </label>
+        </div>
+
+        <div class="right-group">
+          <input type="text" id="searchTags" placeholder="Pesquisar tags (separe por vírgula)" style="min-width:220px;" />
+          <button onclick="aplicarFiltro()">Filtrar</button>
+          <button onclick="limparFiltro()">Limpar</button>
+        </div>
+      </div>
 
       <div class="gallery" id="galeria"></div>
 
@@ -164,7 +220,7 @@
 
   <!-- Viewer fullscreen -->
   <div id="viewer" onclick="onViewerBackgroundClick(event)">
-    <div class="viewer-content" role="dialog" aria-modal="true">
+    <div class="viewer-content" role="dialog" aria-modal="true" id="viewerContent">
       <div class="viewer-controls">
         <button class="viewer-btn" onclick="downloadCurrent(event)">Baixar</button>
         <button class="viewer-btn" onclick="closeViewer(event)">Fechar</button>
@@ -189,8 +245,11 @@
     let paginaAtual = 1;
     const itensPorPagina = 20;
     let arquivosGlobal = [];
+    let filteredIds = null;
     let viewerIndex = -1;
+    let currentScale = 1;
 
+    // IndexedDB init
     const request = indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = e => {
       db = e.target.result;
@@ -207,20 +266,30 @@
         document.getElementById("album").style.display = "block";
         carregarArquivos();
       } else {
-        alert("Senha incorreta!");
+        alert("Senha incorreta");
       }
     }
 
+    function parseTags(raw) {
+      if (!raw) return [];
+      return Array.from(new Set(raw.split(',')
+        .map(t => t.trim())
+        .filter(Boolean)));
+    }
+
+    // Save files with pre-upload tags
     function salvarArquivos() {
       const files = Array.from(document.getElementById("fileInput").files);
       if (!files.length) return;
+      const preTagsRaw = document.getElementById("preTags").value.trim();
+      const preTags = parseTags(preTagsRaw);
       let saved = 0;
       files.forEach(file => {
         const reader = new FileReader();
         reader.onload = () => {
           const tx = db.transaction("arquivos", "readwrite");
           const store = tx.objectStore("arquivos");
-          store.add({ nome: file.name, tipo: file.type, dados: reader.result });
+          store.add({ nome: file.name, tipo: file.type, dados: reader.result, tags: preTags.slice() });
           tx.oncomplete = () => {
             saved++;
             if (saved === files.length) {
@@ -235,6 +304,92 @@
       document.getElementById("fileInput").value = "";
     }
 
+    // Export all records as JSON (array of objects)
+    function exportAll() {
+      const tx = db.transaction("arquivos", "readonly");
+      const store = tx.objectStore("arquivos");
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const all = req.result.map(r => ({
+          nome: r.nome,
+          tipo: r.tipo,
+          dados: r.dados,
+          tags: Array.isArray(r.tags) ? r.tags : []
+        }));
+        const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), items: all }, null, 0)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `album-export-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+      };
+      req.onerror = () => alert('Erro ao preparar exportação: ' + req.error);
+    }
+
+    // Import JSON file produced by exportAll
+    async function importFile(event) {
+      const f = event.target.files[0];
+      if (!f) return;
+      if (!confirm('Importar arquivo JSON. Arquivos idênticos serão ignorados. Continuar?')) { event.target.value = ''; return; }
+      try {
+        const text = await f.text();
+        const parsed = JSON.parse(text);
+        const items = parsed.items || parsed;
+        if (!Array.isArray(items)) throw new Error('Formato inválido');
+        // load existing data to avoid duplicates (compare dados string)
+        const existingReq = db.transaction('arquivos','readonly').objectStore('arquivos').getAll();
+        existingReq.onsuccess = () => {
+          const existing = existingReq.result || [];
+          const existingDataSet = new Set(existing.map(r => r.dados));
+          let added = 0;
+          let processed = 0;
+          items.forEach(it => {
+            processed++;
+            if (existingDataSet.has(it.dados)) {
+              // skip duplicate
+              if (processed === items.length) {
+                carregarArquivos();
+                alert(`Importação concluída. ${added} novos arquivos adicionados, ${items.length - added} ignorados (duplicatas).`);
+                event.target.value = '';
+              }
+              return;
+            }
+            const tx = db.transaction('arquivos','readwrite');
+            tx.objectStore('arquivos').add({
+              nome: it.nome || ('arquivo-' + Date.now()),
+              tipo: it.tipo || 'application/octet-stream',
+              dados: it.dados,
+              tags: Array.isArray(it.tags) ? it.tags : []
+            });
+            tx.oncomplete = () => {
+              added++;
+              if (processed === items.length) {
+                carregarArquivos();
+                alert(`Importação concluída. ${added} novos arquivos adicionados, ${items.length - added} ignorados (duplicatas).`);
+                event.target.value = '';
+              }
+            };
+            tx.onerror = () => {
+              console.error('Erro ao importar item', tx.error);
+              if (processed === items.length) {
+                carregarArquivos();
+                alert(`Importação finalizada com erros. ${added} adicionados.`);
+                event.target.value = '';
+              }
+            };
+          });
+        };
+        existingReq.onerror = () => { throw existingReq.error; };
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao importar: ' + (err.message || err));
+        event.target.value = '';
+      }
+    }
+
+    // Load all records into arquivosGlobal
     function carregarArquivos() {
       arquivosGlobal = [];
       const tx = db.transaction("arquivos", "readonly");
@@ -244,34 +399,67 @@
         const cursor = e.target.result;
         if (cursor) {
           const record = cursor.value;
-          arquivosGlobal.push({ id: cursor.primaryKey, nome: record.nome, tipo: record.tipo, dados: record.dados });
+          arquivosGlobal.push({
+            id: cursor.primaryKey,
+            nome: record.nome,
+            tipo: record.tipo,
+            dados: record.dados,
+            tags: Array.isArray(record.tags) ? record.tags : []
+          });
           cursor.continue();
         } else {
+          arquivosGlobal.sort((a,b) => b.id - a.id);
           renderPagina();
         }
       };
       req.onerror = () => console.error("Erro ao ler IndexedDB:", req.error);
     }
 
+    // Apply tag filter
+    function aplicarFiltro() {
+      const raw = document.getElementById("searchTags").value.trim();
+      if (!raw) { filteredIds = null; renderPagina(); return; }
+      const tokens = raw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+      const matched = arquivosGlobal.filter(a => {
+        const tags = (a.tags || []).map(x => x.toLowerCase());
+        return tokens.every(tok => tags.includes(tok));
+      }).map(a => a.id);
+      filteredIds = matched;
+      paginaAtual = 1;
+      renderPagina();
+    }
+
+    function limparFiltro() {
+      document.getElementById("searchTags").value = "";
+      filteredIds = null;
+      paginaAtual = 1;
+      renderPagina();
+    }
+
+    // Render page
     function renderPagina() {
       const galeria = document.getElementById("galeria");
       galeria.innerHTML = "";
-      const totalPaginas = Math.max(1, Math.ceil(arquivosGlobal.length / itensPorPagina));
+      const source = filteredIds ? arquivosGlobal.filter(a => filteredIds.includes(a.id)) : arquivosGlobal;
+      const totalPaginas = Math.max(1, Math.ceil(source.length / itensPorPagina));
       if (paginaAtual > totalPaginas) paginaAtual = totalPaginas;
       const inicio = (paginaAtual - 1) * itensPorPagina;
       const fim = inicio + itensPorPagina;
-      const pagina = arquivosGlobal.slice(inicio, fim);
+      const pagina = source.slice(inicio, fim);
 
       pagina.forEach(itemData => {
-        const { id, tipo, dados } = itemData;
+        const { id, tipo, dados, tags } = itemData;
         const item = document.createElement("div");
         item.className = "gallery-item";
 
         item.addEventListener("click", (ev) => {
-          if (ev.target.classList.contains('delete-btn')) return;
+          if (ev.target.closest('.small-btn')) return;
           const globalIndex = arquivosGlobal.findIndex(a => a.id === id);
           if (globalIndex >= 0) openViewer(globalIndex);
         });
+
+        const wrap = document.createElement("div");
+        wrap.className = "thumb-wrap";
 
         let el;
         if (tipo.startsWith("image")) {
@@ -288,9 +476,20 @@
           el.style.padding = "10px";
         }
 
+        const actions = document.createElement("div");
+        actions.className = "thumb-actions";
+
+        const editBtn = document.createElement("button");
+        editBtn.className = "small-btn";
+        editBtn.textContent = "Tags";
+        editBtn.onclick = (ev) => {
+          ev.stopPropagation();
+          editarTags(id);
+        };
+
         const delBtn = document.createElement("button");
+        delBtn.className = "small-btn delete-btn";
         delBtn.textContent = "Excluir";
-        delBtn.className = "delete-btn";
         delBtn.onclick = (ev) => {
           ev.stopPropagation();
           if (!confirm("Excluir este arquivo?")) return;
@@ -298,15 +497,35 @@
           txDel.objectStore("arquivos").delete(id);
           txDel.oncomplete = () => {
             arquivosGlobal = arquivosGlobal.filter(a => a.id !== id);
-            const totalPaginasAfter = Math.max(1, Math.ceil(arquivosGlobal.length / itensPorPagina));
+            const sourceAfter = filteredIds ? arquivosGlobal.filter(a => filteredIds.includes(a.id)) : arquivosGlobal;
+            const totalPaginasAfter = Math.max(1, Math.ceil(sourceAfter.length / itensPorPagina));
             if (paginaAtual > totalPaginasAfter) paginaAtual = totalPaginasAfter;
             renderPagina();
           };
           txDel.onerror = () => console.error("Erro ao excluir:", txDel.error);
         };
 
-        item.appendChild(el);
-        item.appendChild(delBtn);
+        actions.appendChild(editBtn);
+        actions.appendChild(delBtn);
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        (tags || []).slice(0,5).forEach(t => {
+          const b = document.createElement("div");
+          b.className = "tag-badge";
+          b.textContent = t;
+          b.onclick = (ev) => {
+            ev.stopPropagation();
+            document.getElementById("searchTags").value = t;
+            aplicarFiltro();
+          };
+          meta.appendChild(b);
+        });
+
+        wrap.appendChild(el);
+        item.appendChild(wrap);
+        item.appendChild(actions);
+        item.appendChild(meta);
         galeria.appendChild(item);
       });
 
@@ -314,7 +533,8 @@
     }
 
     function proximaPagina() {
-      const totalPaginas = Math.max(1, Math.ceil(arquivosGlobal.length / itensPorPagina));
+      const source = filteredIds ? arquivosGlobal.filter(a => filteredIds.includes(a.id)) : arquivosGlobal;
+      const totalPaginas = Math.max(1, Math.ceil(source.length / itensPorPagina));
       if (paginaAtual < totalPaginas) {
         paginaAtual++;
         renderPagina();
@@ -327,10 +547,34 @@
       }
     }
 
-    // Viewer
+    // Edit tags safely without creating duplicates
+    function editarTags(id) {
+      const rec = arquivosGlobal.find(a => a.id === id);
+      const current = (rec && rec.tags) ? rec.tags.join(', ') : '';
+      const raw = prompt("Edite as tags (separe por vírgula):", current);
+      if (raw === null) return;
+      const tags = parseTags(raw);
+      const tx = db.transaction("arquivos", "readwrite");
+      const store = tx.objectStore("arquivos");
+      const getReq = store.get(id);
+      getReq.onsuccess = () => {
+        const record = getReq.result || {};
+        record.tags = tags;
+        record.id = id;
+        store.put(record);
+      };
+      tx.oncomplete = () => {
+        arquivosGlobal = arquivosGlobal.map(a => a.id === id ? { ...a, tags } : a);
+        renderPagina();
+      };
+      tx.onerror = () => console.error("Erro ao atualizar tags:", tx.error);
+    }
+
+    // Viewer with wheel zoom
     function openViewer(index) {
       if (index < 0 || index >= arquivosGlobal.length) return;
       viewerIndex = index;
+      currentScale = 1;
       showViewer();
     }
 
@@ -339,84 +583,92 @@
       const imgEl = document.getElementById("viewerImg");
       const videoEl = document.getElementById("viewerVideo");
       const caption = document.getElementById("viewerCaption");
+      const content = document.getElementById("viewerContent");
       const record = arquivosGlobal[viewerIndex];
       if (!record) return;
 
-      // reset
       imgEl.style.display = "none";
       videoEl.style.display = "none";
       imgEl.src = "";
       videoEl.src = "";
-      imgEl.style.width = "";
-      imgEl.style.height = "";
-      videoEl.style.width = "";
-      videoEl.style.height = "";
+      imgEl.style.transform = "scale(1)";
+      videoEl.style.transform = "scale(1)";
 
-      caption.textContent = `${viewerIndex + 1} / ${arquivosGlobal.length}`; // apenas índice, sem nome de arquivo
+      caption.textContent = `${viewerIndex + 1} / ${arquivosGlobal.length}`;
 
       if (record.tipo.startsWith("image")) {
         imgEl.src = record.dados;
         imgEl.style.display = "block";
-        // quando carregar a imagem, ajusta tamanho para preencher até 90% da viewport,
-        // escalando para cima se a imagem for pequena
-        imgEl.onload = () => {
-          adjustImageSize(imgEl);
-        };
+        imgEl.onload = () => fitMediaToViewport(imgEl);
       } else if (record.tipo.startsWith("video")) {
         videoEl.src = record.dados;
         videoEl.style.display = "block";
         videoEl.onloadedmetadata = () => {
-          adjustVideoSize(videoEl);
-          videoEl.play().catch(()=>{/* autoplay pode ser bloqueado */});
+          fitMediaToViewport(videoEl);
+          videoEl.play().catch(()=>{});
         };
       }
 
       viewer.classList.add("active");
       document.addEventListener("keydown", onViewerKeyDown);
+      content.addEventListener("wheel", onViewerWheel, { passive: false });
+      content.addEventListener("dblclick", onViewerDblClick);
     }
 
-    function adjustImageSize(imgEl) {
+    function fitMediaToViewport(mediaEl) {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const maxW = vw * 0.9;
       const maxH = vh * 0.9;
-      const natW = imgEl.naturalWidth || maxW;
-      const natH = imgEl.naturalHeight || maxH;
+      let natW = mediaEl.naturalWidth || mediaEl.videoWidth || maxW;
+      let natH = mediaEl.naturalHeight || mediaEl.videoHeight || maxH;
+      if (!natW || !natH) { mediaEl.style.width = ""; mediaEl.style.height = ""; return; }
       const scale = Math.min(maxW / natW, maxH / natH);
-      // aplicamos escala mesmo que >1 para ampliar imagens pequenas
       const finalW = Math.round(natW * scale);
       const finalH = Math.round(natH * scale);
-      imgEl.style.width = finalW + "px";
-      imgEl.style.height = finalH + "px";
+      mediaEl.style.width = finalW + "px";
+      mediaEl.style.height = finalH + "px";
+      mediaEl.style.transform = "scale(1)";
+      currentScale = 1;
     }
 
-    function adjustVideoSize(videoEl) {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const maxW = vw * 0.9;
-      const maxH = vh * 0.9;
-      const natW = videoEl.videoWidth || maxW;
-      const natH = videoEl.videoHeight || maxH;
-      const scale = Math.min(maxW / natW, maxH / natH);
-      const finalW = Math.round(natW * scale);
-      const finalH = Math.round(natH * scale);
-      videoEl.style.width = finalW + "px";
-      videoEl.style.height = finalH + "px";
+    function onViewerWheel(e) {
+      e.preventDefault();
+      const imgEl = document.getElementById("viewerImg");
+      const videoEl = document.getElementById("viewerVideo");
+      const media = imgEl.style.display !== "none" ? imgEl : videoEl;
+      if (!media) return;
+      const delta = -e.deltaY;
+      const step = delta > 0 ? 0.12 : -0.12;
+      currentScale = Math.min(5, Math.max(0.4, currentScale + step));
+      media.style.transform = `scale(${currentScale})`;
+    }
+
+    function onViewerDblClick(e) {
+      const imgEl = document.getElementById("viewerImg");
+      const videoEl = document.getElementById("viewerVideo");
+      const media = imgEl.style.display !== "none" ? imgEl : videoEl;
+      if (!media) return;
+      fitMediaToViewport(media);
     }
 
     function closeViewer(ev) {
       if (ev) ev.stopPropagation();
       const viewer = document.getElementById("viewer");
       const videoEl = document.getElementById("viewerVideo");
+      const content = document.getElementById("viewerContent");
       if (videoEl && !videoEl.paused) videoEl.pause();
       viewer.classList.remove("active");
       document.removeEventListener("keydown", onViewerKeyDown);
+      content.removeEventListener("wheel", onViewerWheel);
+      content.removeEventListener("dblclick", onViewerDblClick);
     }
 
     function nextViewer(ev) {
       if (ev) ev.stopPropagation();
       if (arquivosGlobal.length === 0) return;
       viewerIndex = (viewerIndex + 1) % arquivosGlobal.length;
+      currentScale = 1;
       showViewer();
     }
 
@@ -424,6 +676,7 @@
       if (ev) ev.stopPropagation();
       if (arquivosGlobal.length === 0) return;
       viewerIndex = (viewerIndex - 1 + arquivosGlobal.length) % arquivosGlobal.length;
+      currentScale = 1;
       showViewer();
     }
 
@@ -436,6 +689,21 @@
       if (e.key === "Escape") closeViewer();
       else if (e.key === "ArrowRight") nextViewer();
       else if (e.key === "ArrowLeft") prevViewer();
+      else if (e.key === "+" || e.key === "=") {
+        currentScale = Math.min(5, currentScale + 0.2);
+        applyScaleToVisible();
+      } else if (e.key === "-") {
+        currentScale = Math.max(0.4, currentScale - 0.2);
+        applyScaleToVisible();
+      }
+    }
+
+    function applyScaleToVisible() {
+      const imgEl = document.getElementById("viewerImg");
+      const videoEl = document.getElementById("viewerVideo");
+      const media = imgEl.style.display !== "none" ? imgEl : videoEl;
+      if (!media) return;
+      media.style.transform = `scale(${currentScale})`;
     }
 
     function downloadCurrent(ev) {
@@ -449,6 +717,9 @@
       a.click();
       a.remove();
     }
+
+    // Optional: auto-load for testing
+    // document.addEventListener('DOMContentLoaded', carregarArquivos);
   </script>
 </body>
 </html>
